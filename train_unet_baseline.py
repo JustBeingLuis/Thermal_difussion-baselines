@@ -124,9 +124,9 @@ def main():
                 torch.save(model.state_dict(), best_path)
                 print(f"   [!] Nuevo mejor modelo guardado en {best_path}")
 
-        # Checkpoints regulares cada 20 épocas por si queremos retomar
+        # Checkpoints regulares cada 20 épocas (sobreescribiendo para ahorrar disco)
         if epoch % 20 == 0:
-            torch.save(model.state_dict(), os.path.join(save_dir, f"unet_baseline_ep{epoch}.pt"))
+            torch.save(model.state_dict(), os.path.join(save_dir, "unet_baseline_latest.pt"))
 
 if __name__ == "__main__":
     main()
