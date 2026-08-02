@@ -36,8 +36,16 @@ def evaluate_model():
 
     with torch.no_grad():
         for scene_name in test_scenes:
-            cond_path = os.path.join(scenes_dir, scene_name, "120", "TH.png")
-            target_path = os.path.join(scenes_dir, scene_name, "005", "TH.png")
+            cond_dir = os.path.join(scenes_dir, scene_name, "120")
+            target_dir = os.path.join(scenes_dir, scene_name, "005")
+            
+            cond_path = os.path.join(cond_dir, "TH.png")
+            if not os.path.exists(cond_path):
+                cond_path = os.path.join(cond_dir, "TH.jpg")
+                
+            target_path = os.path.join(target_dir, "TH.png")
+            if not os.path.exists(target_path):
+                target_path = os.path.join(target_dir, "TH.jpg")
             
             if not os.path.exists(cond_path) or not os.path.exists(target_path):
                 continue

@@ -43,7 +43,12 @@ class ThermalPairedDataset(Dataset):
                 continue
                 
             cond_path = scene_path / self.cond_folder / "TH.png"
+            if not cond_path.exists():
+                cond_path = scene_path / self.cond_folder / "TH.jpg"
+                
             target_path = scene_path / self.target_folder / "TH.png"
+            if not target_path.exists():
+                target_path = scene_path / self.target_folder / "TH.jpg"
             
             # Solo agregamos a la lista si ambas imágenes existen
             if cond_path.exists() and target_path.exists():
