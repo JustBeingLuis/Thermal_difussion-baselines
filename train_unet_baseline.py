@@ -14,9 +14,9 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"=== Iniciando entrenamiento del Baseline (Pix2Pix) en: {device} ===")
 
-    batch_size = 8
+    batch_size = 16        # RTX 3090 tiene 24GB, soporta 16 o 32 sin problema
     learning_rate = 1e-4
-    epochs = 100
+    epochs = 2000          # Subimos las épocas porque 1 época son muy pocos pasos
     save_dir = "checkpoints_baseline"
     sample_dir = os.path.join(save_dir, "samples")
     
