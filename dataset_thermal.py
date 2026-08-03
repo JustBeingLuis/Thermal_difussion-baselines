@@ -87,6 +87,17 @@ class ThermalPairedDataset(Dataset):
             if random.random() > 0.5:
                 img_cond = TF.hflip(img_cond)
                 img_target = TF.hflip(img_target)
+                
+            # Flip vertical aleatorio (50% de probabilidad)
+            if random.random() > 0.5:
+                img_cond = TF.vflip(img_cond)
+                img_target = TF.vflip(img_target)
+                
+            # Rotación aleatoria en múltiplos de 90 grados
+            rot_angle = random.choice([0, 90, 180, 270])
+            if rot_angle > 0:
+                img_cond = TF.rotate(img_cond, rot_angle)
+                img_target = TF.rotate(img_target, rot_angle)
         else:
             # Si es validación/test, siempre tomamos el centro para consistencia
             img_cond = TF.center_crop(img_cond, output_size=(self.patch_size, self.patch_size))
