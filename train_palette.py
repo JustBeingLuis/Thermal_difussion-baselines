@@ -114,8 +114,18 @@ def main():
                 x_target = x_target[:n].to(device) * 2.0 - 1.0
                 labels = torch.zeros(n, dtype=torch.long, device=device)
                 
+                # --- SWAP TO EMA PARAMS FOR SAMPLING ---
+                active_params = [p.data.clone() for p in model.parameters()]
+                for targ, ema_p in zip(model.parameters(), model.ema_params1):
+                    targ.data.copy_(ema_p.data)
+
                 # Generamos usando ODE Solver (Heun) en 50 pasos
                 pred = model.generate(labels, cond=x_cond, rgb=True)
+                
+                # --- RESTORE ACTIVE PARAMS ---
+                for targ, act_p in zip(model.parameters(), active_params):
+                    targ.data.copy_(act_p.data)
+                del active_params
                 
                 # Desnormalizar de [-1, 1] a [0, 1]
                 cond_vis = (x_cond * 0.5 + 0.5).clamp(0, 1)
