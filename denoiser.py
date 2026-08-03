@@ -88,14 +88,8 @@ class Denoiser(nn.Module):
         # return t
 
     def c_pred(self, z, pred, t):
-        if self.pred == 'x':
-            return pred
-        elif self.pred == 'v':
-            return pred # Direct velocity prediction (Rectified Flow)
-        elif self.pred == 'eps':
-            return pred # pred is already epsilon
-        else:
-            raise ValueError(f"Invalid pred type: {self.pred}")
+        # Deprecated: The loss directly targets the raw output for x, eps, and v.
+        return pred
 
     def forward(self, x, labels, cond=None):
 
@@ -203,7 +197,18 @@ class Denoiser(nn.Module):
         else:
             net_input = z
 
-        # unconditional        
+        if self.cfg_scale == 1.0:
+            if self.pred == 'x':
+                x_cond = self.net(net_input, t.flatten(), labels)
+                return (x_cond - z) / (1.0 - t).clamp_min(self.t_eps)
+            elif self.pred == 'v':
+                return self.net(net_input, t.flatten(), labels)
+            elif self.pred == 'eps':
+                eps_cond = self.net(net_input, t.flatten(), labels)
+                return (z - eps_cond) / t.clamp_min(1e-5)
+
+        # CFG active (cfg_scale != 1.0)
+        # unconditional
         if self.pred == 'x':
             x_uncond = self.net(net_input, t.flatten(), torch.full_like(labels, self.num_classes))
             v_uncond = (x_uncond - z) / (1.0 - t).clamp_min(self.t_eps)
@@ -212,9 +217,6 @@ class Denoiser(nn.Module):
         elif self.pred == 'eps':
             eps_uncond = self.net(net_input, t.flatten(), torch.full_like(labels, self.num_classes))
             v_uncond = (z - eps_uncond) / t.clamp_min(1e-5)
-
-        if self.cfg_scale == 1.0:
-            return v_uncond
 
         # conditional
         if self.pred == 'x':
