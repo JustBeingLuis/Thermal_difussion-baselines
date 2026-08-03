@@ -81,9 +81,7 @@ def main():
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs} [Train]")
         for x_cond, x_target in pbar:
             x_cond, x_target = x_cond.to(device), x_target.to(device)
-            # Normalizamos de [0,1] a [-1, 1] que es lo que espera el modelo de difusión
-            x_cond = x_cond * 2.0 - 1.0
-            x_target = x_target * 2.0 - 1.0
+            # Las imágenes ya vienen en [-1, 1] desde dataset_thermal.py
             
             # Dummy labels
             labels = torch.zeros(x_cond.size(0), dtype=torch.long, device=device)
@@ -110,8 +108,8 @@ def main():
                 # Tomamos un solo batch de validación para generar el grid
                 x_cond, x_target = next(iter(val_loader))
                 n = min(4, x_cond.size(0))
-                x_cond = x_cond[:n].to(device) * 2.0 - 1.0
-                x_target = x_target[:n].to(device) * 2.0 - 1.0
+                x_cond = x_cond[:n].to(device)
+                x_target = x_target[:n].to(device)
                 labels = torch.zeros(n, dtype=torch.long, device=device)
                 
                 # --- SWAP TO EMA PARAMS FOR SAMPLING ---
@@ -143,7 +141,9 @@ def main():
             torch.save({
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'epoch': epoch
+                'epoch': epoch,
+                'ema_params1': [p.data.clone() for p in model.ema_params1],
+                'ema_params2': [p.data.clone() for p in model.ema_params2],
             }, os.path.join(save_dir, "palette_latest.pt"))
 
 if __name__ == "__main__":

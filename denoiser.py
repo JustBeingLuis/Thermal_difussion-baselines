@@ -87,9 +87,7 @@ class Denoiser(nn.Module):
         # t = torch.rand(n, device=device)
         # return t
 
-    def c_pred(self, z, pred, t):
-        # Deprecated: The loss directly targets the raw output for x, eps, and v.
-        return pred
+
 
     def forward(self, x, labels, cond=None):
 
@@ -131,7 +129,6 @@ class Denoiser(nn.Module):
             net_input = z
 
         pred = self.net(net_input, t.flatten(), labels_dropped)
-        pred = self.c_pred(z, pred, t)
 
         if self.pred == 'eps':
             loss = (e - pred) ** 2
