@@ -86,7 +86,8 @@ class DRUNet(nn.Module):
         base_channels: int = 64,
         channel_mults: Optional[List[int]] = None,
         time_emb_dim: int = 256,
-        num_classes: Optional[int] = None
+        num_classes: Optional[int] = None,
+        out_channels: Optional[int] = None
     ):
         super().__init__()
         if channel_mults is None:
@@ -149,11 +150,12 @@ class DRUNet(nn.Module):
                 self.up_blocks.append(blocks)
             prev_ch = ch
 
-        # final conv to map to in_channels
+        # final conv to map to out_channels
+        self.out_channels = out_channels if out_channels is not None else in_channels
         self.final_conv = nn.Sequential(
             nn.GroupNorm(num_groups=min(8, self.chs[0]), num_channels=self.chs[0]),
             nn.SiLU(),
-            nn.Conv2d(self.chs[0], in_channels, kernel_size=1)
+            nn.Conv2d(self.chs[0], self.out_channels, kernel_size=1)
         )
 
     def forward(self, x: torch.Tensor, t: torch.Tensor, y: Optional[torch.Tensor] = None):

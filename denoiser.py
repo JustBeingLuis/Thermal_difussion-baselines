@@ -20,6 +20,7 @@ class Denoiser(nn.Module):
         
             self.net = DRUNet(
                 in_channels=in_channels,
+                out_channels=3 if in_channels == 6 else in_channels,
                 base_channels=args.base_channels,
                 time_emb_dim=32,
                 num_classes=args.class_num
