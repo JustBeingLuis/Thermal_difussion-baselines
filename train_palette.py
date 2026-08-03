@@ -21,8 +21,8 @@ def main():
     parser.add_argument('--img_size', type=int, default=256)
     parser.add_argument('--class_num', type=int, default=1)
     parser.add_argument('--loss', type=str, default='sup')
-    parser.add_argument('--pred', type=str, default='eps') # Fundamental: Predecimos ruido
-    parser.add_argument('--w', type=str, default='none')
+    parser.add_argument('--pred', type=str, default='v') # Cambiado a 'v' (Rectified Flow / Flow-Matching)
+    parser.add_argument('--w', type=str, default='none') # 'none' garantiza que NO haya divisiones que exploten
     parser.add_argument('--sampling_method', type=str, default='heun')
     parser.add_argument('--num_sampling_steps', type=int, default=50) # ODE solver steps
     parser.add_argument('--noise_scale', type=float, default=1.0)
@@ -99,7 +99,7 @@ def main():
             model.update_ema()
             
             train_loss += loss.item()
-            pbar.set_postfix({"L2_Eps": f"{loss.item():.4f}"})
+            pbar.set_postfix({"L2_V": f"{loss.item():.4f}"})
             
         avg_loss = train_loss / len(train_loader)
         
@@ -126,7 +126,7 @@ def main():
                 sample_path = os.path.join(sample_dir, "latest_palette_sample.png")
                 save_image(grid, sample_path, nrow=n)
                 
-            print(f"   -> Resumen Epoch {epoch}: Train Loss (L2 Eps) = {avg_loss:.4f}")
+            print(f"   -> Resumen Epoch {epoch}: Train Loss (L2 V) = {avg_loss:.4f}")
 
         # Checkpoints
         if epoch % 20 == 0:
