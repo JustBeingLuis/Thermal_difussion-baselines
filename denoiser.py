@@ -91,7 +91,7 @@ class Denoiser(nn.Module):
         if self.pred == 'x':
             return pred
         elif self.pred == 'v':
-            return z + (1 - t).clamp_min(self.t_eps) * pred
+            return pred # Direct velocity prediction (Rectified Flow)
         elif self.pred == 'eps':
             return pred # pred is already epsilon
         else:
@@ -141,6 +141,9 @@ class Denoiser(nn.Module):
 
         if self.pred == 'eps':
             loss = (e - pred) ** 2
+        elif self.pred == 'v':
+            v_target = y1 - e
+            loss = (v_target - pred) ** 2
         else:
             loss = (y2 - pred) ** 2
 
