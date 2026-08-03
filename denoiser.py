@@ -72,8 +72,8 @@ class Denoiser(nn.Module):
 
         self.loss = args.loss # 'sup', 'noisy', 'noise2noise', 'gr2r'
         self.base_sigma  = 0.2 # standard deviation of noise added to input during training when noisy_input is True
-        self.pred = args.pred # 'x' or 'v'
-        self.w    = args.w    # 'x' or 'v'
+        self.pred = getattr(args, 'pred', 'eps') # 'x', 'v', or 'eps'
+        self.w    = getattr(args, 'w', 'none')   # 'x', 'v', or 'none'
 
     def drop_labels(self, labels):
         drop = torch.rand(labels.shape[0], device=labels.device) < self.label_drop_prob
@@ -87,15 +87,16 @@ class Denoiser(nn.Module):
         # return t
 
     def c_pred(self, z, pred, t):
-
         if self.pred == 'x':
             return pred
         elif self.pred == 'v':
             return z + (1 - t).clamp_min(self.t_eps) * pred
+        elif self.pred == 'eps':
+            return pred # pred is already epsilon
         else:
             raise ValueError(f"Invalid pred type: {self.pred}")
 
-    def forward(self, x, labels):
+    def forward(self, x, labels, cond=None):
 
 
 
@@ -128,22 +129,26 @@ class Denoiser(nn.Module):
 
 
         z  = t * y1 + (1 - t) * e
-        # z2 = t * y2 + (1 - t) * e
 
-        # v = (y2 - z2) / (1 - t).clamp_min(self.t_eps)
+        if cond is not None:
+            net_input = torch.cat([cond, z], dim=1)
+        else:
+            net_input = z
 
-
-        pred = self.net(z, t.flatten(), labels_dropped)
+        pred = self.net(net_input, t.flatten(), labels_dropped)
         pred = self.c_pred(z, pred, t)
 
-        # v_pred = (x_pred - z2) / (1 - t).clamp_min(self.t_eps)
-        loss = (y2 - pred) ** 2
+        if self.pred == 'eps':
+            loss = (e - pred) ** 2
+        else:
+            loss = (y2 - pred) ** 2
 
         if self.w == 'v':
             w = (1 - t).clamp_min(self.t_eps)
             w = 1 / (w ** 2)
-        
-        if self.w == 'x':
+        elif self.w == 'x':
+            w = 1.0
+        else:
             w = 1.0
 
 
@@ -158,10 +163,10 @@ class Denoiser(nn.Module):
         return loss # + loss2 * 0.01
 
     @torch.no_grad()
-    def generate(self, labels, rgb=None):
+    def generate(self, labels, cond=None, rgb=None):
         # Use model's in_channels if rgb not specified
         if rgb is None:
-            n_channels = self.in_channels
+            n_channels = 3 if cond is not None else self.in_channels
         else:
             n_channels = 3 if rgb else 1
 
@@ -181,30 +186,41 @@ class Denoiser(nn.Module):
         for i in range(self.steps - 1):
             t = timesteps[i]
             t_next = timesteps[i + 1]
-            z = stepper(z, t, t_next, labels)
+            z = stepper(z, t, t_next, labels, cond)
         # last step euler
-        z = self._euler_step(z, timesteps[-2], timesteps[-1], labels)
+        z = self._euler_step(z, timesteps[-2], timesteps[-1], labels, cond)
         return z
 
     @torch.no_grad()
-    def _forward_sample(self, z, t, labels):
+    def _forward_sample(self, z, t, labels, cond=None):
+        
+        if cond is not None:
+            net_input = torch.cat([cond, z], dim=1)
+        else:
+            net_input = z
 
         # unconditional        
         if self.pred == 'x':
-            x_uncond = self.net(z, t.flatten(), torch.full_like(labels, self.num_classes))
+            x_uncond = self.net(net_input, t.flatten(), torch.full_like(labels, self.num_classes))
             v_uncond = (x_uncond - z) / (1.0 - t).clamp_min(self.t_eps)
         elif self.pred == 'v':
-            v_uncond = self.net(z, t.flatten(), torch.full_like(labels, self.num_classes))
+            v_uncond = self.net(net_input, t.flatten(), torch.full_like(labels, self.num_classes))
+        elif self.pred == 'eps':
+            eps_uncond = self.net(net_input, t.flatten(), torch.full_like(labels, self.num_classes))
+            v_uncond = (z - eps_uncond) / t.clamp_min(1e-5)
 
         if self.cfg_scale == 1.0:
             return v_uncond
 
         # conditional
         if self.pred == 'x':
-            x_cond = self.net(z, t.flatten(), labels)
+            x_cond = self.net(net_input, t.flatten(), labels)
             v_cond = (x_cond - z) / (1.0 - t).clamp_min(self.t_eps)
         elif self.pred == 'v':
-            v_cond = self.net(z, t.flatten(), labels)
+            v_cond = self.net(net_input, t.flatten(), labels)
+        elif self.pred == 'eps':
+            eps_cond = self.net(net_input, t.flatten(), labels)
+            v_cond = (z - eps_cond) / t.clamp_min(1e-5)
 
         # cfg interval
         low, high = self.cfg_interval
@@ -214,17 +230,17 @@ class Denoiser(nn.Module):
         return v_uncond + cfg_scale_interval * (v_cond - v_uncond)
 
     @torch.no_grad()
-    def _euler_step(self, z, t, t_next, labels):
-        v_pred = self._forward_sample(z, t, labels)
+    def _euler_step(self, z, t, t_next, labels, cond=None):
+        v_pred = self._forward_sample(z, t, labels, cond)
         z_next = z + (t_next - t) * v_pred
         return z_next
 
     @torch.no_grad()
-    def _heun_step(self, z, t, t_next, labels):
-        v_pred_t = self._forward_sample(z, t, labels)
+    def _heun_step(self, z, t, t_next, labels, cond=None):
+        v_pred_t = self._forward_sample(z, t, labels, cond)
 
         z_next_euler = z + (t_next - t) * v_pred_t
-        v_pred_t_next = self._forward_sample(z_next_euler, t_next, labels)
+        v_pred_t_next = self._forward_sample(z_next_euler, t_next, labels, cond)
 
         v_pred = 0.5 * (v_pred_t + v_pred_t_next)
         z_next = z + (t_next - t) * v_pred
