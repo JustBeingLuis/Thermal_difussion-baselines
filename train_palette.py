@@ -33,7 +33,7 @@ def main():
     parser.add_argument('--interval_min', type=float, default=0.0)
     parser.add_argument('--interval_max', type=float, default=1.0)
     parser.add_argument('--label_drop_prob', type=float, default=0.0) # Not needed for pure Image2Image
-    parser.add_argument('--ema_decay1', type=float, default=0.9999)
+    parser.add_argument('--ema_decay1', type=float, default=0.999)
     parser.add_argument('--ema_decay2', type=float, default=0.9996)
     args = parser.parse_args()
 
@@ -112,25 +112,26 @@ def main():
                 x_target = x_target[:n].to(device)
                 labels = torch.zeros(n, dtype=torch.long, device=device)
                 
-                # --- SWAP TO EMA PARAMS FOR SAMPLING ---
+                # --- Generación con PESOS ACTIVOS ---
+                pred_active = model.generate(labels, cond=x_cond, rgb=True)
+
+                # --- Generación con PESOS EMA ---
                 active_params = [p.data.clone() for p in model.parameters()]
                 for targ, ema_p in zip(model.parameters(), model.ema_params1):
                     targ.data.copy_(ema_p.data)
-
-                # Generamos usando ODE Solver (Heun) en 50 pasos
-                pred = model.generate(labels, cond=x_cond, rgb=True)
-                
-                # --- RESTORE ACTIVE PARAMS ---
+                pred_ema = model.generate(labels, cond=x_cond, rgb=True)
                 for targ, act_p in zip(model.parameters(), active_params):
                     targ.data.copy_(act_p.data)
                 del active_params
                 
                 # Desnormalizar de [-1, 1] a [0, 1]
                 cond_vis = (x_cond * 0.5 + 0.5).clamp(0, 1)
-                pred_vis = (pred * 0.5 + 0.5).clamp(0, 1)
+                active_vis = (pred_active * 0.5 + 0.5).clamp(0, 1)
+                ema_vis = (pred_ema * 0.5 + 0.5).clamp(0, 1)
                 target_vis = (x_target * 0.5 + 0.5).clamp(0, 1)
                 
-                grid = torch.cat([cond_vis, pred_vis, target_vis], dim=0)
+                # Grid: Fila1=Cond | Fila2=Active | Fila3=EMA | Fila4=GT
+                grid = torch.cat([cond_vis, active_vis, ema_vis, target_vis], dim=0)
                 sample_path = os.path.join(sample_dir, "latest_palette_sample.png")
                 save_image(grid, sample_path, nrow=n)
                 
