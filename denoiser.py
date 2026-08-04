@@ -167,7 +167,13 @@ class Denoiser(nn.Module):
 
         device = labels.device
         bsz = labels.size(0)
-        z = self.noise_scale * torch.randn(bsz, n_channels, self.img_size, self.img_size, device=device)
+        
+        if cond is not None:
+            H, W = cond.shape[2], cond.shape[3]
+        else:
+            H, W = self.img_size, self.img_size
+            
+        z = self.noise_scale * torch.randn(bsz, n_channels, H, W, device=device)
         timesteps = torch.linspace(0.0, 1.0, self.steps+1, device=device).view(-1, *([1] * z.ndim)).expand(-1, bsz, -1, -1, -1)
 
         if self.method == "euler":

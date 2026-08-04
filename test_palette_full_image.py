@@ -93,6 +93,10 @@ def main():
         output_img = torch.zeros((1, 3, H, W), device=device)
         weight_map = torch.zeros((1, 1, H, W), device=device)
         
+        # Crear ventana de Hann 2D para blending suave (Difuminado en los bordes)
+        window_1d = torch.hann_window(args_eval.patch_size, device=device)
+        window_2d = (window_1d.unsqueeze(1) * window_1d.unsqueeze(0)).unsqueeze(0).unsqueeze(0)
+        
         # Extraer parches
         patches = []
         coords = []
@@ -126,13 +130,13 @@ def main():
             
         pred_patches = torch.cat(pred_patches, dim=0) # [N, 3, 256, 256]
         
-        # Reconstruir imagen completa (Promediando áreas superpuestas)
+        # Reconstruir imagen completa (Blending con ventana de Hann)
         for i, (y_start, y_end, x_start, x_end) in enumerate(coords):
-            # Aplicamos una matriz de ventana para suavizar los bordes (opcional pero recomendado)
-            # Aquí usamos un peso plano simple de acumulación
-            output_img[:, :, y_start:y_end, x_start:x_end] += pred_patches[i].to(device)
-            weight_map[:, :, y_start:y_end, x_start:x_end] += 1.0
+            output_img[:, :, y_start:y_end, x_start:x_end] += pred_patches[i].to(device) * window_2d
+            weight_map[:, :, y_start:y_end, x_start:x_end] += window_2d
             
+        # Evitar división por cero en esquinas remotas (muy poco probable pero seguro)
+        weight_map = torch.clamp(weight_map, min=1e-5)
         # Promediar
         final_pred = output_img / weight_map # [-1, 1]
         
