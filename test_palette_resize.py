@@ -80,8 +80,8 @@ def main():
         pred_256 = model.generate(labels, cond=t_cond, rgb=True) # [1, 3, 256, 256]
         
         # 4. Redimensionar predicción hacia arriba a 800x1080
-        # Interpolación Bicúbica para suavizar el re-escalado
-        pred_800 = torch.nn.functional.interpolate(pred_256, size=base_size, mode='bicubic', align_corners=False)
+        # PyTorch interpolate usa (Height, Width), mientras que base_size es (Width, Height) de PIL
+        pred_800 = torch.nn.functional.interpolate(pred_256, size=(base_size[1], base_size[0]), mode='bicubic', align_corners=False)
         
         # 5. Desnormalizar y preparar para guardar
         t_target_800 = ((TF.to_tensor(img_target_800) - 0.5) / 0.5).unsqueeze(0).to(device)
